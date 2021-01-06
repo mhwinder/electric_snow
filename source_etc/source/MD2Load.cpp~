@@ -1,0 +1,151 @@
+/*
+  This code was created by Payk using the tutorial
+  which can be found at: http://tfc.duke.free.fr/coding/md2-specs-en.html
+  It was higly optimzed for libnds to work at 60FPS.
+  Please do not remove this credit or claim that it was your code.
+*/
+
+#ifndef MD2LOAD_CPP
+#define MD2LOAD_CPP
+
+#include "MD2.h"
+#include <stdio.h>
+
+v16 zero=floattov16(0.0f);
+
+
+
+void FreeModel(MD2Entity &Model, bool &ModelEnable){
+	int N;
+	if(ModelEnable==true){
+		for (N = 0; N < Model.header.num_frames; ++N)free(Model.frms[N].verts);
+		free(Model.frms); 
+		free(Model.uvs);
+		free(Model.tris); 
+		ModelEnable=false;
+	}
+}
+
+void LoadMD2Model(char Filename[],int width, int height,int scale, MD2Entity &Model, bool &ModelEnable){
+		
+	FILE *fp = fopen(Filename,"rb") ;
+	if (fp==NULL) {
+		printf("\nwasnt found");
+		return;
+	}
+	 
+	int i;
+	
+	/* read header */
+	fread (&Model.header, 1, sizeof (md2_header_t), fp);
+	if ((Model.header.ident != 844121161) ||
+		(Model.header.version != 8))
+		{
+			/* error! */
+			iprintf("error: bad version!");
+			while(1==1){}//Can't go on so lets hang arround
+		}
+	  /* memory allocation */
+	Model.texcoords = (md2_texCoord_t *)malloc (sizeof (md2_texCoord_t) * Model.header.num_st);
+	Model.triangles = (md2_triangle_t *)malloc (sizeof (md2_triangle_t) * Model.header.num_tris);
+	Model.frames = (md2_frame_t *)malloc (sizeof(md2_frame_t) * Model.header.num_frames);
+	
+	//Read float textcoords
+	  fseek (fp, Model.header.offset_st, SEEK_SET);
+	  fread (Model.texcoords, sizeof (md2_texCoord_t), Model.header.num_st, fp);
+	
+	//read that float triangles
+	  fseek (fp, Model.header.offset_tris, SEEK_SET);
+	  fread (Model.triangles, sizeof (md2_triangle_t), Model.header.num_tris, fp);
+	 
+	  /* read frames */
+	 fseek (fp, Model.header.offset_frames, SEEK_SET);
+	  for (i = 0; i < Model.header.num_frames; ++i)
+		{
+		  /* memory allocation for vertices of this frame */
+		  Model.frames[i].verts = (md2_vertex_t *)
+		malloc (sizeof (md2_vertex_t) * Model.header.num_vertices);
+	
+		  /* read frame data */
+		  fread (Model.frames[i].scale, sizeof (vec3_t), 1, fp);
+		  fread (Model.frames[i].translate, sizeof (vec3_t), 1, fp);
+		  fread (Model.frames[i].name, sizeof (char), 16, fp);
+		  fread (Model.frames[i].verts, sizeof (md2_vertex_t), Model.header.num_vertices, fp);
+		}
+	
+	 fclose (fp);
+	 
+	//<<<<<<<<Extatcly here we got a standard md2 model stored in a standard way
+	//Now we convert them for a superfast nds renderway
+	//ok erstma den shit mallocen
+	Model.uvs = (nds_texCoord_t *)malloc (sizeof (nds_texCoord_t) * Model.header.num_st);
+	Model.tris = (nds_triangle_t *)malloc (sizeof (nds_triangle_t) * Model.header.num_tris);
+	Model.frms = (nds_frame_t *)malloc (sizeof(nds_frame_t) * Model.header.num_frames);
+	for (i = 0; i < Model.header.num_frames; ++i)
+		Model.frms[i].verts = (nds_vertex_t *)
+			malloc (sizeof (nds_vertex_t) * Model.header.num_vertices);
+	
+	//nun schön brav eins nach dem anderen von float und den dreck in fixed point math konvertieren
+	int I,j,N;
+	float s,t;
+	vec3_t v;
+	md2_frame_t *pframe;
+	md2_vertex_t *pvert;//der kram is nötig dafür
+	
+	//also framedata in rahmendaten umwandeln
+	for (N = 0; N < Model.header.num_frames; ++N){
+		for (I = 0; I < Model.header.num_tris; ++I){
+			for (j = 0; j < 3; ++j){
+				pframe = &Model.frames[N];
+				pvert = &pframe->verts[Model.triangles[I].vertex[j]];
+				//dekomresse die aktuelle framedate			
+				v[0] = (pframe->scale[0] * pvert->v[0]) + pframe->translate[0];
+				v[1] = (pframe->scale[1] * pvert->v[1]) + pframe->translate[1];
+				v[2] = (pframe->scale[2] * pvert->v[2]) + pframe->translate[2];
+				//Lager die unkompressed framevertexe
+				Model.frms[N].verts[Model.triangles[I].vertex[j]].v[0]=floattov16(float(v[0]/128)*scale);
+				Model.frms[N].verts[Model.triangles[I].vertex[j]].v[1]=floattov16(float(v[1]/128)*scale);
+				Model.frms[N].verts[Model.triangles[I].vertex[j]].v[2]=floattov16(float(v[2]/128)*scale);
+				//Kopiere den framename
+				strcpy(Model.frms[N].name,pframe->name);
+			}
+		}
+	}
+	
+	
+	//Normal indices
+	for (N = 0; N < Model.header.num_frames; ++N){
+		for (I = 0; I < Model.header.num_vertices; ++I){
+	
+			Model.frms[N].verts[I].normalindex=Model.frames[N].verts[I].normalIndex;
+		
+		}
+	}
+	
+	
+	
+	
+	//Nun zu den texturkooridinaten
+	for (I = 0; I < Model.header.num_tris; ++I){
+		for (j = 0; j < 3; ++j){
+
+			s = (float)Model.texcoords[Model.triangles[I].st[j]].s / Model.header.skinwidth;
+			t = (float)Model.texcoords[Model.triangles[I].st[j]].t / Model.header.skinheight;
+			Model.uvs[Model.triangles[I].st[j]].s=floattot16(float(1-s)*width);
+			Model.uvs[Model.triangles[I].st[j]].t=floattot16(float(t)*height);
+			
+			Model.tris[I].st[j]=Model.triangles[I].st[j];//Index for texture coords
+			Model.tris[I].vertex[j]=Model.triangles[I].vertex[j];//Index for vertices
+		
+		}
+	}
+	
+	
+	for (N = 0; N < Model.header.num_frames; ++N)free(Model.frames[N].verts);
+	free(Model.frames); 
+	free(Model.texcoords);
+	free(Model.triangles); 
+	ModelEnable=true;
+}
+#endif
+

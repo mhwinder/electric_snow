@@ -1,0 +1,49 @@
+/*---------------------------------------------------------------------------------
+
+	by GugloPWN
+
+---------------------------------------------------------------------------------*/
+
+#ifndef BLOCK_H
+#define BLOCK_H
+
+#include <nds.h>
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+
+
+
+class particle {
+
+	public:
+
+	void spawnparticle();
+	void moveparticle(int x,int y,int force);
+	void draw particle(int r,int g,int b);
+	
+	//Setters and getters for the various block elements
+	inline int getx() {return x;}
+	inline int gety() {return y;}
+	inline int getvx() {return vx;}
+	inline int getvy() {return vy;}
+	inline int getsize() {return size;}
+	inline int getlife() {return life;}
+	
+	private:
+	
+	//The block elements
+	int vx;
+	int vy;
+	int size;
+	int x;
+	int y;
+	int life;
+	int spin;
+	
+};
+
+
+#endif
+
+

@@ -1,0 +1,64 @@
+/*---------------------------------------------------------------------------------
+
+	by GugloPWN
+
+---------------------------------------------------------------------------------*/
+
+#include "particle.h"
+
+void particle::spawnparticle(int nx,int ny)
+{
+	x = nx;
+	y = ny;
+	vx = rand() % 10;
+	if(rand() % 2) {vx=vx*-1;}
+	vy = rand() % 10;
+	if(rand() % 2) {vy=vy*-1;}
+	size = rand() % 3 + 1;
+	life = rand() % 60 + 30;
+	spin = rand() % 120;
+	
+	if (size == 1){vx=vx*25; vy=vy*25;}
+	else if (size == 2) {vx=vx*20; vy=vy*20;}
+	else {vx=vx*15; vy=vy*15;}
+	return;
+}
+
+void particle::moveparticle(int fpx,int fpy,int fx,int fy,int nx,int ny)
+{
+	if (life>0)
+	{
+		if (size == 1){fx=fx*3; fy=fy*3;}
+		else if (size == 2) {fx=fx*2; fy=fy*2;}
+
+		//Apply Force
+		if (fpx > x) {vx+=fx;}
+		else vx-=fx;
+	
+		if (fpy > y) {vy+=fy;}
+		else vy-=fy;
+	
+		//Set new position
+		x+=vx;
+		y+=vy;
+		life--;
+	}
+	else
+	{
+		spawnparticle(nx,ny);
+	}
+	return;
+}
+
+void particle::drawparticle(int r,int g,int b,int a)
+{
+	glLoadIdentity();									// Reset The Current Modelview Matrix
+	glTranslate3f32(x,y,-24576);
+	glRotatef32i(((a+spin)*DEGREES_IN_CIRCLE / 90),0,0,4096);
+	glColor3b(r,g,b);
+	glBegin(GL_TRIANGLES);
+		glVertex3v16(355*size, -205*size, 0);
+		glVertex3v16(-355*size, -205*size, 0);
+		glVertex3v16(0, 405*size, 0);
+	glEnd();
+}
